@@ -1,5 +1,4 @@
 A simple pong game that I will compile to emscripten
-
 Game Data:
 
 struct position{x, y}
