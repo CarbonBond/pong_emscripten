@@ -142,6 +142,7 @@ void winCondition(double deltaTime, const Uint8 *keystate) {
   // Left scoring.
   if (ball.pos.x + (ball.speed.x * deltaTime) > WINDOW_WIDTH) {
     score.left += 1;
+    paddle_l.speed.y -= 10;
     resetPositions();
     ball.speed = {-300., 0.};
     gameState = delay;
@@ -150,6 +151,7 @@ void winCondition(double deltaTime, const Uint8 *keystate) {
   // Right scoring.
   if (ball.pos.x + (ball.speed.x * deltaTime) < 0) {
     score.right += 1;
+    paddle_l.speed.y += 10;
     resetPositions();
     ball.speed = {300., 0.};
     gameState = delay;
