@@ -2,13 +2,20 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <ostream>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+
+void ballCollision(double);
+void paddleMovement(double, const Uint8 *);
+void winCondition(double, const Uint8 *);
+void playGame(const Uint8 *);
 
 const int WINDOW_WIDTH = 900;
 const int WINDOW_HEIGHT = 600;
@@ -23,15 +30,16 @@ struct posistion {
   float x;
   float y;
 };
+struct score {
+  int left;
+  int right;
+};
 
 struct ball {
   posistion pos;
   int radius;
   vector2d speed;
 };
-
-void ballMovement(double);
-void paddleMovement(double);
 
 struct paddle {
   posistion pos;
@@ -40,14 +48,17 @@ struct paddle {
   vector2d speed;
 };
 
+enum gameState { delay, play, pause };
+
 const int BALL_RADIUS = 8;
 vector2d BALL_SPEED = {400., 0.};
-
-ball ball = {{WINDOW_WIDTH / 2., WINDOW_HEIGHT / 2.}, BALL_RADIUS, BALL_SPEED};
-
 const int PADDLE_WIDTH = 6;
 const int PADDLE_HEIGHT = 70;
 vector2d PADDLE_SPEED = {0., 350.};
+
+gameState gameState = pause;
+
+ball ball = {{WINDOW_HEIGHT / 2., WINDOW_WIDTH / 2.}, 7, BALL_SPEED};
 
 paddle paddle_l = {
     {0., WINDOW_HEIGHT / 2.}, PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_SPEED};
@@ -56,6 +67,8 @@ paddle paddle_r = {{WINDOW_WIDTH - PADDLE_WIDTH, WINDOW_HEIGHT / 2.},
                    PADDLE_WIDTH,
                    PADDLE_HEIGHT,
                    PADDLE_SPEED};
+
+score score = {0, 0};
 
 void redraw() {
   SDL_SetRenderDrawColor(renderer, /* RGBA: black */ 0x00, 0x00, 0x00, 0xFF);
@@ -85,6 +98,8 @@ bool handle_events() {
   SDL_Event event;
   SDL_PollEvent(&event);
 
+  const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+
   ticksNow = SDL_GetTicks64();
   deltaTime = (double)(ticksNow - ticksLast) / 1000;
   ticksLast = ticksNow;
@@ -93,30 +108,73 @@ bool handle_events() {
     return false;
   }
 
-  paddleMovement(deltaTime);
+  switch (gameState) {
+  case delay:
+    SDL_Delay(350);
+    gameState = pause;
+  case pause:
+    playGame(keystate);
+    break;
 
-  ballMovement(deltaTime);
+  case play:
+    paddleMovement(deltaTime, keystate);
+    ballCollision(deltaTime);
+    winCondition(deltaTime, keystate);
+    break;
+  }
 
   redraw();
-
-  SDL_Delay(2);
+  SDL_Delay(1);
   return true;
 }
 
-void paddleMovement(double deltaTime) {
-  const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+void playGame(const Uint8 *keystate) {
+  if (keystate[SDL_SCANCODE_W] || keystate[SDL_SCANCODE_S]) {
+    gameState = play;
+  }
+}
 
-  if (keystate[SDL_SCANCODE_W]) {
+void resetPositions() {
+  paddle_l.pos.y = WINDOW_HEIGHT / 2. - paddle_l.height / 2;
+  paddle_r.pos.y = WINDOW_HEIGHT / 2. - paddle_r.height / 2;
+
+  ball.pos.x = WINDOW_WIDTH / 2.;
+  ball.pos.y = WINDOW_HEIGHT / 2.;
+}
+
+void winCondition(double deltaTime, const Uint8 *keystate) {
+  // Left scoring.
+  if (ball.pos.x + (ball.speed.x * deltaTime) > WINDOW_WIDTH) {
+    score.left += 1;
+    resetPositions();
+    ball.speed = {-300., 0.};
+    gameState = delay;
+  }
+
+  // Right scoring.
+  if (ball.pos.x + (ball.speed.x * deltaTime) < 0) {
+    score.right += 1;
+    resetPositions();
+    ball.speed = {300., 0.};
+    gameState = delay;
+  }
+}
+
+void paddleMovement(double deltaTime, const Uint8 *keystate) {
+  if (keystate[SDL_SCANCODE_W] &&
+      paddle_r.pos.y + (paddle_r.speed.y * deltaTime) > 0) {
     paddle_r.pos.y -= paddle_r.speed.y * deltaTime;
   }
 
-  if (keystate[SDL_SCANCODE_S]) {
+  if (keystate[SDL_SCANCODE_S] &&
+      paddle_r.pos.y + paddle_r.height + (paddle_r.speed.y * deltaTime) <
+          WINDOW_HEIGHT) {
     paddle_r.pos.y += paddle_r.speed.y * deltaTime;
   }
 
-  if (paddle_l.pos.y + paddle_l.height / 2 < ball.pos.y-10) {
+  if (paddle_l.pos.y + paddle_l.height / 2 < ball.pos.y - 10) {
     paddle_l.pos.y += paddle_l.speed.y * deltaTime;
-  } else if (paddle_l.pos.y + paddle_l.height / 2 > ball.pos.y+10) {
+  } else if (paddle_l.pos.y + paddle_l.height / 2 > ball.pos.y + 10) {
     paddle_l.pos.y -= paddle_l.speed.y * deltaTime;
   }
 }
@@ -131,55 +189,45 @@ void ballHitsPaddle(double deltaTime, paddle paddle) {
       ball.pos.y - ball.radius + (ball.speed.y * deltaTime) <
           paddle.height + paddle.pos.y) { // bottom paddle, top ball.
 
-    float hitLocation = (ball.pos.y - paddle.pos.y)/paddle.height;
-    if(hitLocation < 0.001) {
+    float hitLocation = (ball.pos.y - paddle.pos.y) / paddle.height;
+    if (hitLocation < 0.001) {
       hitLocation = 0.001;
     } else if (hitLocation > 1.) {
       hitLocation = 1.;
     }
 
-    if(hitLocation < 0.333){
+    if (hitLocation < 0.333) {
       ball.speed.x = ball.speed.x * -0.8;
-      ball.speed.y = (ball.speed.y - 200)* 1.2;
+      ball.speed.y = (ball.speed.y - 200) * 1.2;
     } else if (hitLocation > 0.666) {
       ball.speed.x = ball.speed.x * -0.8;
-      ball.speed.y = (ball.speed.y + 200)* 1.2;
+      ball.speed.y = (ball.speed.y + 200) * 1.2;
     } else {
       ball.speed.x = ball.speed.x * -1.4;
       ball.speed.y = ball.speed.y * 0.8;
     }
 
-    if(ball.speed.x > 550) {
+    if (ball.speed.x > 550) {
       ball.speed.x = 550;
     } else if (ball.speed.x < -550) {
       ball.speed.x = -550;
     }
 
-    if(ball.speed.y > 550) {
-      ball.speed.y = 550 ;
+    if (ball.speed.y > 550) {
+      ball.speed.y = 550;
     } else if (ball.speed.y < -550) {
       ball.speed.y = -550;
     }
   }
 }
 
-void ballMovement(double deltaTime) {
-
+void ballCollision(double deltaTime) {
   if (ball.pos.y + ball.radius + (ball.speed.y * deltaTime) > WINDOW_HEIGHT) {
     ball.speed.y *= -1;
   }
 
   if (ball.pos.y - ball.radius + (ball.speed.y * deltaTime) < 0) {
     ball.speed.y *= -1;
-  }
-
-  if (ball.pos.x + ball.radius + (ball.speed.x * deltaTime) >
-      WINDOW_WIDTH + 100) {
-    ball.speed.x *= -1;
-  }
-
-  if (ball.pos.x - ball.radius + (ball.speed.x * deltaTime) < 0 - 100) {
-    ball.speed.x *= -1;
   }
 
   ballHitsPaddle(deltaTime, paddle_l);
