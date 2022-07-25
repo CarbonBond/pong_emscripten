@@ -3,7 +3,12 @@
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_stdinc.h>
+#include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_timer.h>
+#include <SDL2/SDL_ttf.h>
+#include <cstddef>
+#include <cstdio>
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -15,6 +20,7 @@ void playGame(const Uint8 *);
 
 const int WINDOW_WIDTH = 900;
 const int WINDOW_HEIGHT = 600;
+
 SDL_Window *window;
 SDL_Renderer *renderer;
 
@@ -67,8 +73,41 @@ paddle paddle_r = {{WINDOW_WIDTH - PADDLE_WIDTH, WINDOW_HEIGHT / 2.},
 score score = {0, 0};
 
 void redraw() {
+
   SDL_SetRenderDrawColor(renderer, /* RGBA: black */ 0x00, 0x00, 0x00, 0xFF);
   SDL_RenderClear(renderer);
+
+  TTF_Font *font = TTF_OpenFont("./RetroBlocky.ttf", 60);
+  SDL_Color white = {255, 255, 255};
+
+  {
+    char text[2];
+    sprintf(text, "%d", score.left);
+    SDL_Surface *leftScore = TTF_RenderText_Solid(font, text, white);
+    SDL_Texture *leftTexture =
+        SDL_CreateTextureFromSurface(renderer, leftScore);
+    SDL_FreeSurface(leftScore);
+    SDL_Rect leftRect = {
+        .x = WINDOW_HEIGHT / 6, .y = WINDOW_HEIGHT / 10, .w = 40, .h = 60};
+
+    SDL_RenderCopy(renderer, leftTexture, NULL, &leftRect);
+    SDL_DestroyTexture(leftTexture);
+  }
+
+  {
+    char text[2];
+    sprintf(text, "%d", score.right);
+    SDL_Surface *leftScore = TTF_RenderText_Solid(font, text, white);
+    SDL_Texture *leftTexture =
+        SDL_CreateTextureFromSurface(renderer, leftScore);
+    SDL_FreeSurface(leftScore);
+    SDL_Rect leftRect = {
+        .x = WINDOW_WIDTH - 40 - WINDOW_HEIGHT / 6, .y = WINDOW_HEIGHT / 10, .w = 40, .h = 60};
+
+    SDL_RenderCopy(renderer, leftTexture, NULL, &leftRect);
+    SDL_DestroyTexture(leftTexture);
+  }
+
   SDL_SetRenderDrawColor(renderer, /* RGBA: white */ 0xFF, 0xFF, 0xFF, 0xFF);
   SDL_FRect l = {.x = paddle_l.pos.x,
                  .y = paddle_l.pos.y,
@@ -83,7 +122,22 @@ void redraw() {
   SDL_SetRenderDrawColor(renderer, /* RGBA: green */ 0x00, 0x80, 0x00, 0xFF);
   filledCircleRGBA(renderer, ball.pos.x, ball.pos.y, ball.radius,
                    /* RGBA: green */ 0x00, 0x80, 0x00, 0xFF);
+  if (gameState == pause) {
+    SDL_Surface *pauseMsg = TTF_RenderText_Solid(font, "move to start", white);
+    SDL_Texture *texturePause =
+        SDL_CreateTextureFromSurface(renderer, pauseMsg);
+    SDL_FreeSurface(pauseMsg);
+    SDL_Rect pauseRect = {.x = WINDOW_WIDTH / 4,
+                          .y = WINDOW_HEIGHT / 6,
+                          .w = WINDOW_WIDTH / 2,
+                          .h = 60};
+
+    SDL_RenderCopy(renderer, texturePause, NULL, &pauseRect);
+    SDL_DestroyTexture(texturePause);
+  }
   SDL_RenderPresent(renderer);
+
+  TTF_CloseFont(font);
 }
 
 Uint64 ticksNow = SDL_GetTicks64();
@@ -103,7 +157,6 @@ bool handle_events() {
   if (event.type == SDL_QUIT) {
     return false;
   }
-  
 
   if (keystate[SDL_SCANCODE_ESCAPE]) {
     gameState = pause;
@@ -116,7 +169,6 @@ bool handle_events() {
   case pause:
     playGame(keystate);
     break;
-
   case play:
     paddleMovement(deltaTime, keystate);
     ballCollision(deltaTime);
@@ -145,7 +197,7 @@ void resetPositions() {
 
 void winCondition(double deltaTime, const Uint8 *keystate) {
   // Left scoring.
-  if (ball.pos.x + (ball.speed.x * deltaTime) > WINDOW_WIDTH) {
+  if (ball.pos.x > WINDOW_WIDTH) {
     score.left += 1;
     paddle_l.speed.y -= 25;
     resetPositions();
@@ -154,7 +206,7 @@ void winCondition(double deltaTime, const Uint8 *keystate) {
   }
 
   // Right scoring.
-  if (ball.pos.x + (ball.speed.x * deltaTime) < 0) {
+  if (ball.pos.x < 0) {
     score.right += 1;
     paddle_l.speed.y += 25;
     resetPositions();
@@ -175,9 +227,11 @@ void paddleMovement(double deltaTime, const Uint8 *keystate) {
     paddle_r.pos.y += paddle_r.speed.y * deltaTime;
   }
 
-  if (paddle_l.pos.y + paddle_l.height / 2 < ball.pos.y - 10) {
+  if (paddle_l.pos.y + paddle_l.height / 2 < ball.pos.y - 10 &&
+      paddle_l.pos.y < WINDOW_HEIGHT) {
     paddle_l.pos.y += paddle_l.speed.y * deltaTime;
-  } else if (paddle_l.pos.y + paddle_l.height / 2 > ball.pos.y + 10) {
+  } else if (paddle_l.pos.y + paddle_l.height / 2 > ball.pos.y + 10 &&
+             paddle_l.pos.y > 0) {
     paddle_l.pos.y -= paddle_l.speed.y * deltaTime;
   }
 }
@@ -202,11 +256,13 @@ void ballHitsPaddle(double deltaTime, paddle paddle) {
     if (hitLocation < 0.4) {
       ball.speed.x = ball.speed.x * (-0.8 - hitLocation);
       float speedMultiplier = (1. + 0.4 - hitLocation);
-      ball.speed.y = (ball.speed.y - 10 * (speedMultiplier+10)) * speedMultiplier;
+      ball.speed.y =
+          (ball.speed.y - 10 * (speedMultiplier + 10)) * speedMultiplier;
     } else if (hitLocation > 0.66) {
-      ball.speed.x = ball.speed.x * (-0.8 - hitLocation +0.6);
+      ball.speed.x = ball.speed.x * (-0.8 - hitLocation + 0.6);
       float speedMultiplier = (1. + hitLocation - 0.6);
-      ball.speed.y = (ball.speed.y + 10 * (speedMultiplier+10)) * speedMultiplier;
+      ball.speed.y =
+          (ball.speed.y + 10 * (speedMultiplier + 10)) * speedMultiplier;
     } else {
       ball.speed.x = ball.speed.x * -1.5;
       ball.speed.y = ball.speed.y * 0.8;
@@ -217,7 +273,6 @@ void ballHitsPaddle(double deltaTime, paddle paddle) {
     } else if (ball.speed.x < -650) {
       ball.speed.x = -650;
     }
-    
 
     if (ball.speed.y > 550) {
       ball.speed.y = 550;
@@ -255,6 +310,7 @@ void run_main_loop() {
 
 int main() {
   SDL_Init(SDL_INIT_VIDEO);
+  TTF_Init();
 
   SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window,
                               &renderer);
@@ -265,5 +321,6 @@ int main() {
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
 
+  TTF_Quit();
   SDL_Quit();
 }
