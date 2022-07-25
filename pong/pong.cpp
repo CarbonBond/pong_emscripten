@@ -4,10 +4,6 @@
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
-#include <algorithm>
-#include <cstdint>
-#include <iostream>
-#include <ostream>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
