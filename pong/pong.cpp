@@ -192,22 +192,25 @@ void ballHitsPaddle(double deltaTime, paddle paddle) {
       hitLocation = 1.;
     }
 
-    if (hitLocation < 0.333) {
-      ball.speed.x = ball.speed.x * -0.8;
-      ball.speed.y = (ball.speed.y - 200) * 1.2;
-    } else if (hitLocation > 0.666) {
-      ball.speed.x = ball.speed.x * -0.8;
-      ball.speed.y = (ball.speed.y + 200) * 1.2;
+    if (hitLocation < 0.4) {
+      ball.speed.x = ball.speed.x * (-0.8 + hitLocation);
+      float speedMultiplier = (1. + 0.4 - hitLocation);
+      ball.speed.y = (ball.speed.y - 10 * (speedMultiplier+10)) * speedMultiplier;
+    } else if (hitLocation > 0.66) {
+      ball.speed.x = ball.speed.x * (-0.8 - hitLocation +0.6);
+      float speedMultiplier = (1. + hitLocation - 0.6);
+      ball.speed.y = (ball.speed.y + 10 * (speedMultiplier+10)) * speedMultiplier;
     } else {
-      ball.speed.x = ball.speed.x * -1.4;
+      ball.speed.x = ball.speed.x * -1.5;
       ball.speed.y = ball.speed.y * 0.8;
     }
 
-    if (ball.speed.x > 550) {
-      ball.speed.x = 550;
-    } else if (ball.speed.x < -550) {
-      ball.speed.x = -550;
+    if (ball.speed.x > 650) {
+      ball.speed.x = 650;
+    } else if (ball.speed.x < -650) {
+      ball.speed.x = -650;
     }
+    
 
     if (ball.speed.y > 550) {
       ball.speed.y = 550;
