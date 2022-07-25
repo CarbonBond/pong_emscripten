@@ -58,7 +58,7 @@ vector2d PADDLE_SPEED = {0., 350.};
 
 gameState gameState = pause;
 
-ball ball = {{WINDOW_HEIGHT / 2., WINDOW_WIDTH / 2.}, 7, BALL_SPEED};
+ball ball = {{WINDOW_WIDTH / 2., WINDOW_HEIGHT / 2.}, 7, BALL_SPEED};
 
 paddle paddle_l = {
     {0., WINDOW_HEIGHT / 2.}, PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_SPEED};
