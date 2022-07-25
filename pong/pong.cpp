@@ -103,6 +103,11 @@ bool handle_events() {
   if (event.type == SDL_QUIT) {
     return false;
   }
+  
+
+  if (keystate[SDL_SCANCODE_ESCAPE]) {
+    gameState = pause;
+  }
 
   switch (gameState) {
   case delay:
@@ -142,7 +147,7 @@ void winCondition(double deltaTime, const Uint8 *keystate) {
   // Left scoring.
   if (ball.pos.x + (ball.speed.x * deltaTime) > WINDOW_WIDTH) {
     score.left += 1;
-    paddle_l.speed.y -= 10;
+    paddle_l.speed.y -= 25;
     resetPositions();
     ball.speed = {-300., 0.};
     gameState = delay;
@@ -151,7 +156,7 @@ void winCondition(double deltaTime, const Uint8 *keystate) {
   // Right scoring.
   if (ball.pos.x + (ball.speed.x * deltaTime) < 0) {
     score.right += 1;
-    paddle_l.speed.y += 10;
+    paddle_l.speed.y += 25;
     resetPositions();
     ball.speed = {300., 0.};
     gameState = delay;
@@ -195,7 +200,7 @@ void ballHitsPaddle(double deltaTime, paddle paddle) {
     }
 
     if (hitLocation < 0.4) {
-      ball.speed.x = ball.speed.x * (-0.8 + hitLocation);
+      ball.speed.x = ball.speed.x * (-0.8 - hitLocation);
       float speedMultiplier = (1. + 0.4 - hitLocation);
       ball.speed.y = (ball.speed.y - 10 * (speedMultiplier+10)) * speedMultiplier;
     } else if (hitLocation > 0.66) {
